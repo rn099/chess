@@ -19,7 +19,7 @@ const io = require("socket.io")(server, {
 const chess = new Chess();
 
 let players = {};
-let currentPlayer = "W";
+let currentPlayer = "w";
 
 app.get("/", (req, res) => {
   res.status(200).send("Good");
@@ -28,13 +28,41 @@ app.get("/", (req, res) => {
 io.on("connection", (socket) => {
   console.log("Connected", socket.id);
 
-  socket.on("hello", () => {
-    console.log("Hello received", socket.id);
-    io.emit("hello there");
-  });
+  if (!players.white) {
+    players.white = socket.id;
+    socket.emit("playerRole", "w");
+  } else if (!players.black) {
+    players.black = socket.id;
+    socket.emit("playerRole", "b");
+  } else {
+    socket.emit("spectator");
+  }
 
   socket.on("disconnect", () => {
-    console.log("Disconnected", socket.id);
+    if (socket.id === players.white || socket.id === players.black) {
+      //stop the game
+    }
+  });
+
+  socket.on("move", (move) => {
+    try {
+      if (chess.turn == "w" && socket.id != players.white) return;
+      if (chess.turn == "b" && socket.id != players.black) return;
+
+      const result = chess.move(move);
+      if (result) {
+        currentPlayer = chess.turn();
+        io.emit("move", move);
+        io.emit("boardState", chess.fen());
+      } else {
+        console.log("Invalid Move: ", move);
+        socket.emit("invalidMove", move);
+      }
+    } catch (err) {
+      console.log("Invalid Move: ", move);
+      console.log(err);
+      socket.emit("Invalid Move: ", move);
+    }
   });
 });
 
